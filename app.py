@@ -57,8 +57,8 @@ def api_metrics():
             raw = fetch_repo_data(org, repo)
             metrics = compute_metrics(raw)
             results.append(metrics)
-        except Exception as exc:
-            results.append({"repo": repo, "error": str(exc)})
+        except Exception:
+            results.append({"repo": repo, "error": "Failed to fetch data from GitHub."})
 
     return jsonify(results)
 
@@ -84,13 +84,13 @@ def api_risk():
             raw = fetch_repo_data(org, repo)
             metrics = compute_metrics(raw)
             metrics_list.append(metrics)
-        except Exception as exc:
-            metrics_list.append({"repo": repo, "error": str(exc)})
+        except Exception:
+            metrics_list.append({"repo": repo, "error": "Failed to fetch data from GitHub."})
 
     try:
         analysis = analyse_risk(metrics_list)
-    except Exception as exc:
-        return jsonify({"error": f"Claude analysis failed: {exc}"}), 500
+    except Exception:
+        return jsonify({"error": "Claude analysis failed. Please check your ANTHROPIC_API_KEY and try again."}), 500
 
     return jsonify({"analysis": analysis})
 
@@ -99,4 +99,5 @@ def api_risk():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug = os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
+    app.run(host="0.0.0.0", port=port, debug=debug)
