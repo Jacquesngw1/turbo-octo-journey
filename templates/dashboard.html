@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Delivery Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #38bdf8;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --green: #4ade80;
+            --yellow: #facc15;
+            --red: #f87171;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            font-size: 1.8rem;
+            color: var(--accent);
+        }
+        header p {
+            color: var(--muted);
+            margin-top: 0.25rem;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid rgba(148,163,184,0.15);
+        }
+        .metric:last-child { border-bottom: none; }
+        .metric-label { color: var(--muted); }
+        .metric-value { font-weight: 600; }
+        .score-good { color: var(--green); }
+        .score-warn { color: var(--yellow); }
+        .score-bad  { color: var(--red); }
+        .risk-flags {
+            margin-top: 0.5rem;
+            list-style: none;
+        }
+        .risk-flags li {
+            padding: 0.25rem 0.5rem;
+            margin-top: 0.25rem;
+            background: rgba(248,113,113,0.15);
+            border-left: 3px solid var(--red);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .risk-panel {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .risk-panel h2 {
+            color: var(--accent);
+            margin-bottom: 1rem;
+        }
+        .risk-panel pre {
+            white-space: pre-wrap;
+            color: var(--text);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        button {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+        button:hover { opacity: 0.85; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .loading {
+            color: var(--muted);
+            font-style: italic;
+        }
+        .error {
+            color: var(--red);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🚀 AI Delivery Dashboard</h1>
+        <p>Real-time repository health metrics &amp; AI-powered risk analysis</p>
+    </header>
+
+    <div id="metrics-container" class="grid">
+        <p class="loading">Loading metrics…</p>
+    </div>
+
+    <div class="risk-panel">
+        <h2>🤖 AI Risk Analysis</h2>
+        <button id="risk-btn" onclick="fetchRisk()">Run Risk Analysis</button>
+        <pre id="risk-output">Click the button above to generate an AI-powered risk analysis.</pre>
+    </div>
+
+    <script>
+        const REFRESH_INTERVAL = 60000; // 60 seconds
+
+        function scoreClass(score) {
+            if (score >= 70) return 'score-good';
+            if (score >= 40) return 'score-warn';
+            return 'score-bad';
+        }
+
+        function renderMetrics(data) {
+            const container = document.getElementById('metrics-container');
+
+            if (data.error) {
+                container.innerHTML = `<p class="error">Error: ${data.error}</p>`;
+                return;
+            }
+
+            if (!Array.isArray(data) || data.length === 0) {
+                container.innerHTML = '<p class="loading">No metrics available.</p>';
+                return;
+            }
+
+            container.innerHTML = data.map(m => {
+                if (m.error) {
+                    return `<div class="card"><h2>${m.repo}</h2><p class="error">${m.error}</p></div>`;
+                }
+                const flagsHtml = m.risk_flags && m.risk_flags.length
+                    ? `<ul class="risk-flags">${m.risk_flags.map(f => `<li>⚠️ ${f}</li>`).join('')}</ul>`
+                    : '';
+                return `
+                    <div class="card">
+                        <h2>📦 ${m.repo}</h2>
+                        <div class="metric">
+                            <span class="metric-label">Health Score</span>
+                            <span class="metric-value ${scoreClass(m.health_score)}">${m.health_score}/100</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Open PRs</span>
+                            <span class="metric-value">${m.open_prs}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Avg PR Age</span>
+                            <span class="metric-value">${m.avg_pr_age_days} days</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Open Issues</span>
+                            <span class="metric-value">${m.open_issues}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Avg Issue Age</span>
+                            <span class="metric-value">${m.avg_issue_age_days} days</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Recent Commits</span>
+                            <span class="metric-value">${m.recent_commits}</span>
+                        </div>
+                        ${flagsHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function fetchMetrics() {
+            try {
+                const resp = await fetch('/api/metrics');
+                const data = await resp.json();
+                renderMetrics(data);
+            } catch (err) {
+                document.getElementById('metrics-container').innerHTML =
+                    `<p class="error">Failed to load metrics: ${err.message}</p>`;
+            }
+        }
+
+        async function fetchRisk() {
+            const btn = document.getElementById('risk-btn');
+            const output = document.getElementById('risk-output');
+            btn.disabled = true;
+            btn.textContent = 'Analysing…';
+            output.textContent = 'Requesting AI analysis…';
+
+            try {
+                const resp = await fetch('/api/risk');
+                const data = await resp.json();
+                if (data.error) {
+                    output.textContent = `Error: ${data.error}`;
+                } else {
+                    output.textContent = data.analysis;
+                }
+            } catch (err) {
+                output.textContent = `Failed to load analysis: ${err.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Run Risk Analysis';
+            }
+        }
+
+        // Initial load and auto-refresh
+        fetchMetrics();
+        setInterval(fetchMetrics, REFRESH_INTERVAL);
+    </script>
+</body>
+</html>
